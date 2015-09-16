@@ -51,11 +51,17 @@ class AvS_FastSimpleImport_Model_Import_Entity_Product extends AvS_FastSimpleImp
     /** @var bool */
     protected $_disablePreprocessImageData = false;
 
-    /** @var null|bool */
+    /** @var bool */
     protected $_unsetEmptyFields = false;
 
-    /** @var null|bool */
+    /** @var bool|string */
     protected $_symbolEmptyFields = false;
+
+    /** @var bool|string */
+    protected $_symbolIgnoreFields = false;
+
+    /** @var bool */
+    protected $_ignoreDuplicates = false;
 
     /** @var null|bool */
     protected $_useExternalImages = false;
@@ -74,6 +80,17 @@ class AvS_FastSimpleImport_Model_Import_Entity_Product extends AvS_FastSimpleImp
         'custom_design',
         'country_of_manufacture'
     );
+
+    public function setIgnoreDuplicates($ignore)
+    {
+	$this->_ignoreDuplicates = (boolean) $ignore;
+    }
+
+
+    public function getIgnoreDuplicates()
+    {
+	return $this->_ignoreDuplicates;
+    }
 
     /**
      * Set the error limit when the importer will stop
@@ -131,6 +148,15 @@ class AvS_FastSimpleImport_Model_Import_Entity_Product extends AvS_FastSimpleImp
      */
     public function setSymbolEmptyFields($value) {
         $this->_symbolEmptyFields = $value;
+        return $this;
+    }
+
+    /**
+     * @param string $value
+     * @return $this
+     */
+    public function setSymbolIgnoreFields($value) {
+        $this->_symbolIgnoreFields = $value;
         return $this;
     }
 
@@ -664,11 +690,10 @@ class AvS_FastSimpleImport_Model_Import_Entity_Product extends AvS_FastSimpleImp
 
             /** @var $attribute Mage_Eav_Model_Entity_Attribute */
             $attribute = Mage::getSingleton('catalog/product')->getResource()->getAttribute($attributeCode);
-            if (!is_object($attribute)) {
+	    if ($attribute === false) {
                 continue;
-//                Mage::throwException('Attribute ' . $attributeCode . ' not found.');
             }
-            if ($attribute->getSourceModel() != 'eav/entity_attribute_source_table') {
+	    if (!($attribute->getSource() instanceof Mage_Eav_Model_Entity_Attribute_Source_Abstract)) {
                 Mage::throwException('Attribute ' . $attributeCode . ' is no dropdown attribute.');
             }
             $attributes[$attributeCode] = $attribute;
@@ -692,11 +717,10 @@ class AvS_FastSimpleImport_Model_Import_Entity_Product extends AvS_FastSimpleImp
 
             /** @var $attribute Mage_Eav_Model_Entity_Attribute */
             $attribute = Mage::getSingleton('catalog/product')->getResource()->getAttribute($attributeCode);
-            if (!is_object($attribute)) {
+	    if ($attribute === false) {
                 continue;
-//                Mage::throwException('Attribute ' . $attributeCode . ' not found.');
             }
-            if ($attribute->getBackendModel() != 'eav/entity_attribute_backend_array') {
+	    if (!($attribute->getBackend() instanceof Mage_Eav_Model_Entity_Attribute_Backend_Abstract)) {
                 Mage::throwException('Attribute ' . $attributeCode . ' is no multiselect attribute.');
             }
             $attributes[$attributeCode] = $attribute;
@@ -920,7 +944,8 @@ class AvS_FastSimpleImport_Model_Import_Entity_Product extends AvS_FastSimpleImp
 
                 foreach ($attributes as $attributeId => $storeValues) {
                     foreach ($storeValues as $storeId => $storeValue) {
-                        if (! is_null($storeValue)) {
+                        // For storeId 0 we *must* save the NULL value into DB otherwise product collections can not load the store specific values
+                        if ($storeId == 0 || ! is_null($storeValue)) {
                             $tableData[] = array(
                                 'entity_id'      => $productId,
                                 'entity_type_id' => $this->_entityTypeId,
@@ -1026,7 +1051,7 @@ class AvS_FastSimpleImport_Model_Import_Entity_Product extends AvS_FastSimpleImp
                     $categories[$rowSku][$categoryId] = true;
                 } elseif (!empty($categoryPath)) {
                     $categories[$rowSku][$this->_categories[$categoryPath]] = true;
-                } elseif (isset($rowData[self::COL_CATEGORY])) {
+                } elseif (array_key_exists(self::COL_CATEGORY, $rowData)) {
                     $categories[$rowSku] = array();
                 }
 
@@ -1262,12 +1287,14 @@ class AvS_FastSimpleImport_Model_Import_Entity_Product extends AvS_FastSimpleImp
      */
     protected function _filterRowData(&$rowData)
     {
-        if ($this->_unsetEmptyFields || $this->_symbolEmptyFields) {
+        if ($this->_unsetEmptyFields || $this->_symbolEmptyFields || $this->_symbolIgnoreFields) {
             foreach($rowData as $key => $fieldValue) {
                 if ($this->_unsetEmptyFields && !strlen($fieldValue)) {
                     unset($rowData[$key]);
                 } else if ($this->_symbolEmptyFields && trim($fieldValue) == $this->_symbolEmptyFields) {
                     $rowData[$key] = NULL;
+                } else if ($this->_symbolIgnoreFields && trim($fieldValue) == $this->_symbolIgnoreFields) {
+                    unset($rowData[$key]);
                 }
             }
         }
@@ -1335,6 +1362,9 @@ class AvS_FastSimpleImport_Model_Import_Entity_Product extends AvS_FastSimpleImp
         $this->_validatedRows[$rowNum] = true;
 
         if (isset($this->_newSku[$rowData[self::COL_SKU]])) {
+	    if($this->getIgnoreDuplicates()){
+		return true;
+	    }
             $this->addRowError(self::ERROR_DUPLICATE_SKU, $rowNum);
             return false;
         }
@@ -1530,5 +1560,21 @@ class AvS_FastSimpleImport_Model_Import_Entity_Product extends AvS_FastSimpleImp
             $attribute->setBackendModel($backendModelName);
         }
         return $attribute;
+    }
+
+
+    /**
+     * @param $sku
+     * @return array|false
+     */
+    public function getEntityBySku($sku)
+    {
+        if (isset($this->_oldSku[$sku])) {
+            return $this->_oldSku[$sku];
+        }
+        if (isset($this->_newSku[$sku])) {
+            return $this->_newSku[$sku];
+        }
+        return false;
     }
 }
