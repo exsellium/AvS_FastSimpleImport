@@ -94,7 +94,7 @@ class AvS_FastSimpleImport_Model_Import extends Mage_ImportExport_Model_Import
         $entityAdapter->setUnsetEmptyFields($this->getUnsetEmptyFields());
         $entityAdapter->setSymbolEmptyFields($this->getSymbolEmptyFields());
         $entityAdapter->setSymbolIgnoreFields($this->getSymbolIgnoreFields());
-	 $entityAdapter->setIgnoreDuplicates($this->getIgnoreDuplicates());
+        $entityAdapter->setIgnoreDuplicates($this->getIgnoreDuplicates());
         $entityAdapter->setUseExternalImages($this->getUseExternalImages());
         $this->setEntityAdapter($entityAdapter);
 
@@ -109,14 +109,12 @@ class AvS_FastSimpleImport_Model_Import extends Mage_ImportExport_Model_Import
                 }
 
                 if (!$this->getContinueAfterErrors()) {
-
                     Mage::throwException($this->getErrorMessage());
                 }
             }
 
             if ($this->getProcessedRowsCount() > $this->getInvalidRowsCount()) {
                 if (!empty($partialIndexing)) {
-
                     $this->_prepareDeletedProductsReindex();
                     $this->importSource();
                     $this->reindexImportedProducts();
@@ -313,7 +311,6 @@ class AvS_FastSimpleImport_Model_Import extends Mage_ImportExport_Model_Import
 
             if ($this->getProcessedRowsCount() > $this->getInvalidRowsCount()) {
                 $this->importSource();
-
                 $this->getEntityAdapter()->updateChildrenCount();
 
                 if (!empty($partialIndexing)) {
@@ -346,7 +343,6 @@ class AvS_FastSimpleImport_Model_Import extends Mage_ImportExport_Model_Import
         }
 
         $this->setUseNestedArrays(false);
-
         $this->setEntity(Mage_Catalog_Model_Category::ENTITY);
 
         /** @var $entityAdapter AvS_FastSimpleImport_Model_Import_Entity_Category */
@@ -381,10 +377,9 @@ class AvS_FastSimpleImport_Model_Import extends Mage_ImportExport_Model_Import
         if (!is_null($behavior)) {
             $this->setBehavior($behavior);
         }
+
         $this->setUseNestedArrays(false);
-
         $this->setEntity('category_product');
-
         $partialIndexing = $this->getPartialIndexing();
 
         /** @var $entityAdapter AvS_FastSimpleImport_Model_Import_Entity_Category_Product */
@@ -397,6 +392,7 @@ class AvS_FastSimpleImport_Model_Import extends Mage_ImportExport_Model_Import
 //        $entityAdapter->setSymbolIgnoreFields($this->getSymbolIgnoreFields());
         $this->setEntityAdapter($entityAdapter);
         $validationResult = $this->validateSource($data);
+
         if ($this->getProcessedRowsCount() > 0) {
             if (!$validationResult) {
                 if ($entityAdapter->getErrorsCount() >= $entityAdapter->getErrorsLimit()) {
@@ -410,7 +406,6 @@ class AvS_FastSimpleImport_Model_Import extends Mage_ImportExport_Model_Import
                     Mage::throwException($this->getErrorMessage());
                 }
             }
-
 
             if ($this->getProcessedRowsCount() > $this->getInvalidRowsCount()) {
                 $this->importSource(); // this resets the internal previously set _data array :-( that's why $partialIndexing is needed
@@ -441,7 +436,6 @@ class AvS_FastSimpleImport_Model_Import extends Mage_ImportExport_Model_Import
         }
 
         $this->setUseNestedArrays(false);
-
         $this->setEntity('category_product');
 
         /** @var $entityAdapter AvS_FastSimpleImport_Model_Import_Entity_Category_Product */
@@ -453,6 +447,7 @@ class AvS_FastSimpleImport_Model_Import extends Mage_ImportExport_Model_Import
 //        $entityAdapter->setSymbolEmptyFields($this->getSymbolEmptyFields());
 //        $entityAdapter->setSymbolIgnoreFields($this->getSymbolIgnoreFields());
         $this->setEntityAdapter($entityAdapter);
+
         $validationResult = $this->validateSource($data);
         return $validationResult;
     }
@@ -505,9 +500,11 @@ class AvS_FastSimpleImport_Model_Import extends Mage_ImportExport_Model_Import
         $message = sprintf("Input Data contains %s corrupt records (from a total of %s)",
             $this->getInvalidRowsCount(), $this->getProcessedRowsCount()
         );
+
         foreach ($this->getErrors() as $type => $lines) {
             $message .= "\n:::: " . $type . " ::::\nIn Line(s) " . implode(", ", $lines) . "\n";
         }
+
         return $message;
     }
 
@@ -573,6 +570,7 @@ class AvS_FastSimpleImport_Model_Import extends Mage_ImportExport_Model_Import
         if (!is_array($attributeCodes)) {
             $attributeCodes = array($attributeCodes);
         }
+
         $this->setData('dropdown_attributes', $attributeCodes);
         return $this;
     }
@@ -589,6 +587,7 @@ class AvS_FastSimpleImport_Model_Import extends Mage_ImportExport_Model_Import
         if (!is_array($attributeCodes)) {
             $attributeCodes = array($attributeCodes);
         }
+
         $this->setData('multiselect_attributes', $attributeCodes);
         return $this;
     }
@@ -605,10 +604,12 @@ class AvS_FastSimpleImport_Model_Import extends Mage_ImportExport_Model_Import
         if (!is_array($attributeCodes)) {
             $attributeCodes = array($attributeCodes);
             $attributes     = Mage::getResourceModel('catalog/product_attribute_collection')->addFieldToFilter('frontend_input', 'media_image');
+
             foreach ($attributes as $attribute) {
                 $attributeCodes[] = $attribute->getAttributeCode();
             }
         }
+
         $this->setData('image_attributes', $attributeCodes);
         return $this;
     }
