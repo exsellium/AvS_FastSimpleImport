@@ -149,6 +149,7 @@ class AvS_FastSimpleImport_Model_Import_Entity_Customer extends Mage_ImportExpor
             $this->_addressEntity->importData();
             $this->_saveWishlists();
         }
+        Mage::dispatchEvent('customer_import_finish_before', array('adapter' => $this));
         return true;
     }
 
@@ -198,10 +199,8 @@ class AvS_FastSimpleImport_Model_Import_Entity_Customer extends Mage_ImportExpor
                     $emailToLower = strtolower($rowData[self::COL_EMAIL]);
                     if (isset($oldCustomersToLower[$emailToLower][$rowData[self::COL_WEBSITE]])) {
                         $wishlist['customer_id'] = $oldCustomersToLower[$emailToLower][$rowData[self::COL_WEBSITE]];
-                    } elseif (isset($oldCustomersToLower[$emailToLower][$rowData[self::COL_WEBSITE]])) {
+                    } elseif (isset($newCustomersToLower[$emailToLower][$rowData[self::COL_WEBSITE]])) {
                         $wishlist['customer_id'] = $newCustomersToLower[$emailToLower][$rowData[self::COL_WEBSITE]];
-                    } else {
-                        Mage::throwException('Customer not found, shouldn\'t happen');
                     }
 
                     $keyLength = strlen('_wishlist_');
@@ -209,6 +208,11 @@ class AvS_FastSimpleImport_Model_Import_Entity_Customer extends Mage_ImportExpor
                         if (strpos($key, '_wishlist_') === 0 && strpos($key, '_wishlist_item_') === false && !empty($value)) {
                             $wishlist[substr($key, $keyLength)] = $value;
                         }
+                    }
+
+                    //no wishlist data found.
+                    if (count($wishlist) <= 1) {
+                        continue;
                     }
 
                     $wishlistModel = Mage::getModel('wishlist/wishlist');
@@ -225,16 +229,17 @@ class AvS_FastSimpleImport_Model_Import_Entity_Customer extends Mage_ImportExpor
                     $wishlistModel->addData($wishlist);
                     $wishlistModel->save();
                     $wishlistId = (int) $wishlistModel->getId();
+
+                    if ($this->getBehavior() != Mage_ImportExport_Model_Import::BEHAVIOR_APPEND) { // remove old data?
+                        $this->_connection->delete(
+                            $entityItemTable,
+                            $this->_connection->quoteInto('wishlist_id = ?', $wishlistId)
+                        );
+                    }
                 }
 
                 $wishlistItem = array();
 
-                if ($this->getBehavior() != Mage_ImportExport_Model_Import::BEHAVIOR_APPEND) { // remove old data?
-                    $this->_connection->delete(
-                        $entityItemTable,
-                        $this->_connection->quoteInto('wishlist_id = ?', $wishlistId)
-                    );
-                }
 
                 $keyLength = strlen('_wishlist_item_');
                 foreach ($rowData as $key => $value) {
@@ -332,7 +337,9 @@ class AvS_FastSimpleImport_Model_Import_Entity_Customer extends Mage_ImportExpor
                             $attrParams = $this->_attributes[$attrCode];
 
                             if ('select' == $attrParams['type']) {
-                                $value = $attrParams['options'][strtolower($value)];
+                                if (isset($attrParams['options'][strtolower($value)])) {
+                                    $value = $attrParams['options'][strtolower($value)];
+                                }
                             } elseif ('datetime' == $attrParams['type']) {
                                 $value = gmstrftime($strftimeFormat, strtotime($value));
                             } elseif ($backModel) {
@@ -630,17 +637,50 @@ class AvS_FastSimpleImport_Model_Import_Entity_Customer extends Mage_ImportExpor
                     /* And start a new one */
                     $entityGroup = array();
                 }
-
-                if ($this->validateRow($rowData, $source->key()) && isset($entityGroup)) {
+                $this->validateRow($rowData, $source->key());
+                if (isset($entityGroup)) {
                     /* Add row to entity group */
                     $entityGroup[$source->key()] = $this->_prepareRowForDb($rowData);
-                } elseif (isset($entityGroup)) {
-                    /* In case validation of one line of the group fails kill the entire group */
-                    unset($entityGroup);
                 }
                 $source->next();
             }
         }
         return $this;
+    }
+
+    /**
+     * DB connection getter.
+     *
+     * @return Varien_Db_Adapter_Pdo_Mysql
+     */
+    public function getConnection()
+    {
+        return $this->_connection;
+    }
+
+    /**
+     * Get next bunch of validatetd rows.
+     *
+     * @return array|null
+     */
+    public function getNextBunch()
+    {
+        return $this->_dataSourceModel->getNextBunch();
+    }
+
+
+    /**
+     * @param string $email
+     * @return array|false
+     */
+    public function getEntityByEmail($email)
+    {
+        if (isset($this->_oldCustomers[$email])) {
+            return $this->_oldCustomers[$email];
+        }
+        if (isset($this->_newCustomers[$email])) {
+            return $this->_newCustomers[$email];
+        }
+        return false;
     }
 }
