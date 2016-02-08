@@ -1803,7 +1803,7 @@ class AvS_FastSimpleImport_Model_Import_Entity_Product extends AvS_FastSimpleImp
 
                 $valueArr = array(
                     'value_id' => $insertValue['value_id'],
-                    'store_id' => Mage_Catalog_Model_Abstract::DEFAULT_STORE_ID,
+                    'store_id' => $insertValue['store_id'],
                     'label'    => $insertValue['label'],
                     'position' => $insertValue['position'],
                     'disabled' => $insertValue['disabled']
