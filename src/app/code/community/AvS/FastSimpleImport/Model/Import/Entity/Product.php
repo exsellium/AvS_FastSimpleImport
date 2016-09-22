@@ -1112,6 +1112,7 @@ class AvS_FastSimpleImport_Model_Import_Entity_Product extends AvS_FastSimpleImp
         $productLimit   = null;
         $productsQty    = null;
         $rowSku         = null;
+        $rowNum 	= -1;
 
         while ($bunch = $this->_dataSourceModel->getNextBunch()) {
             $entityRowsIn = array();
@@ -1127,7 +1128,8 @@ class AvS_FastSimpleImport_Model_Import_Entity_Product extends AvS_FastSimpleImp
             $previousAttributeSet = null;
             $currentStoreId = Mage_Catalog_Model_Product::DEFAULT_STORE_ID;
 
-            foreach ($bunch as $rowNum => $rowData) {
+            foreach ($bunch as $rowData) {
+		$rowNum++;
                 $this->_filterRowData($rowData);
 
                 if (!$this->validateRow($rowData, $rowNum)) {
@@ -1181,7 +1183,7 @@ class AvS_FastSimpleImport_Model_Import_Entity_Product extends AvS_FastSimpleImp
                     $categories[$rowSku][$categoryId] = true;
                 } elseif (!empty($categoryPath)) {
                     $categories[$rowSku][$this->_categories[$categoryPath]] = true;
-                } elseif (array_key_exists(self::COL_CATEGORY, $rowData)) {
+                } elseif (array_key_exists(self::COL_CATEGORY, $rowData) && $rowScope == self::SCOPE_DEFAULT) {
                     $categories[$rowSku] = array();
                 }
 
