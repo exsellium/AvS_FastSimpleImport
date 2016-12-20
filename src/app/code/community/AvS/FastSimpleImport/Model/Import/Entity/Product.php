@@ -253,7 +253,8 @@ class AvS_FastSimpleImport_Model_Import_Entity_Product extends AvS_FastSimpleImp
     public function validateData()
     {
         if (!$this->_dataValidated) {
-            $this->_createAttributeOptions();
+            $this->_createAttributeOptions($this->getDropdownAttributes());
+            $this->_createAttributeOptions($this->getMultiselectAttributes());
             $this->_preprocessImageData();
 
             if (!$this->getAllowRenameFiles() && $this->getDownloadExternalImages()) {
@@ -265,29 +266,24 @@ class AvS_FastSimpleImport_Model_Import_Entity_Product extends AvS_FastSimpleImp
     }
 
     /**
+     * @param array $attributes
      * @return void
      */
-    protected function _createAttributeOptions()
+    protected function _createAttributeOptions(array $attributes)
     {
-        $this->_createDropdownAttributeOptions();
-        $this->_createMultiselectAttributeOptions();
-    }
-
-    /**
-     * @return void
-     */
-    protected function _createDropdownAttributeOptions()
-    {
-        if (!count($this->getDropdownAttributes()) || $this->getIsDryRun()) {
+        if (!count($attributes) || $this->getIsDryRun()) {
             return;
         }
 
+        $sourceAttributes = array();
         $this->_getSource()->rewind();
+
         while ($this->_getSource()->valid()) {
             $rowData = $this->_getSource()->current();
+            $rowScope = $this->getRowScope($rowData);
             $this->_filterRowData($rowData);
 
-            foreach ($this->getDropdownAttributes() as $attribute) {
+            foreach ($attributes as $attribute) {
                 /** @var $attribute Mage_Eav_Model_Entity_Attribute */
                 $attributeCode = $attribute->getAttributeCode();
 
@@ -295,52 +291,26 @@ class AvS_FastSimpleImport_Model_Import_Entity_Product extends AvS_FastSimpleImp
                     continue;
                 }
 
-                $options = $this->_getAttributeOptions($attribute);
+                if (self::SCOPE_STORE !== $rowScope) {
+                    $storeId = Mage_Core_Model_App::ADMIN_STORE_ID;
+                } else {
+                    $storeId = Mage::getModel('core/store')->loadConfig($rowData[self::COL_STORE])->getId();
+                }
 
-                /** @var AvS_FastSimpleImport_Helper_Data $helper */
-                $helper = Mage::helper('fastsimpleimport');
-                if (!in_array($helper->strtolower(trim($rowData[$attributeCode])), $options, true)) {
-                    $this->_createAttributeOption($attribute, trim($rowData[$attributeCode]));
+                if (!isset($sourceAttributes[$attributeCode])) $sourceAttributes[$attributeCode] = array();
+                if (!isset($sourceAttributes[$attributeCode][$storeId])) $sourceAttributes[$attributeCode][$storeId] = array();
+
+                $sourceAttributes[$attributeCode][$storeId][] = trim($rowData[$attributeCode]);
+
+                if (self::SCOPE_STORE === $rowScope) {
+                    $this->_getSource()->unsetValue($attributeCode);
                 }
             }
 
             $this->_getSource()->next();
         }
-    }
 
-    /**
-     * @return void
-     */
-    protected function _createMultiselectAttributeOptions()
-    {
-        if (!count($this->getMultiselectAttributes()) || $this->getIsDryRun()) {
-            return;
-        }
-
-        $this->_getSource()->rewind();
-        while ($this->_getSource()->valid()) {
-            $rowData = $this->_getSource()->current();
-            $this->_filterRowData($rowData);
-
-            foreach ($this->getMultiselectAttributes() as $attribute) {
-                /** @var $attribute Mage_Eav_Model_Entity_Attribute */
-                $attributeCode = $attribute->getAttributeCode();
-
-                if (!isset($rowData[$attributeCode]) || !strlen(trim($rowData[$attributeCode]))) {
-                    continue;
-                }
-
-                $options = $this->_getAttributeOptions($attribute);
-
-                /** @var AvS_FastSimpleImport_Helper_Data $helper */
-                $helper = Mage::helper('fastsimpleimport');
-                if (!in_array($helper->strtolower(trim($rowData[$attributeCode])), $options, true)) {
-                    $this->_createAttributeOption($attribute, trim($rowData[$attributeCode]));
-                }
-            }
-
-            $this->_getSource()->next();
-        }
+        $this->_createAttributeOption($sourceAttributes);
     }
 
     /**
@@ -372,24 +342,55 @@ class AvS_FastSimpleImport_Model_Import_Entity_Product extends AvS_FastSimpleImp
     }
 
     /**
-     * @param Mage_Eav_Model_Entity_Attribute $attribute   Attribute
-     * @param string                          $optionLabel Frontend label
+     * @param array $attributes
      * @return void
      */
-    protected function _createAttributeOption($attribute, $optionLabel)
+    protected function _createAttributeOption($attributes)
     {
-        $option = array(
-            'value' => array(
-                array('0' => $optionLabel)
-            ),
-            'order' => array(0),
-            'delete' => array('')
-        );
+        $stores = Mage::app()->getStores();
 
-        $attribute->setOption($option);
-        $attribute->save();
+        foreach ($attributes as $attributeCode => $attributeOptions) {
+            if (!isset($attributeOptions[Mage_Core_Model_App::ADMIN_STORE_ID])) {
+                continue;
+            }
 
-        $this->_attributeOptions[$attribute->getAttributeCode()][] = Mage::helper('fastsimpleimport')->strtolower($optionLabel);
+            /** @var $attribute Mage_Eav_Model_Entity_Attribute */
+            $attribute = Mage::getResourceSingleton('catalog/product')
+                ->getAttribute($attributeCode);
+
+            foreach ($attributeOptions[Mage_Core_Model_App::ADMIN_STORE_ID] as $idx => $optionLabel) {
+                $option = array();
+                $optionLabel = Mage::helper('catalog')->stripTags($optionLabel);
+
+                /** @var AvS_FastSimpleImport_Helper_Data $helper */
+                $helper = Mage::helper('fastsimpleimport');
+                $options = $this->_getAttributeOptions($attribute);
+
+                if (!in_array($helper->strtolower($optionLabel), $options, true)) {
+                    $option[Mage_Core_Model_App::ADMIN_STORE_ID] = $optionLabel;
+                    $this->_attributeOptions[$attributeCode][] = $helper->strtolower($optionLabel);
+
+                    foreach (array_keys($stores) as $storeId) {
+                        if (isset($attributeOptions[$storeId]) && array_key_exists($idx, $attributeOptions[$storeId])) {
+                            $storeLabel = Mage::helper('catalog')->stripTags($attributeOptions[$storeId][$idx]);
+
+                            if (0 !== strcmp($storeLabel, $optionLabel)) {
+                                $option[$storeId] = $storeLabel;
+                            }
+                        }
+                    }
+
+                    $attribute->setOption(array(
+                        'value' => array(
+                            $option
+                        ),
+                        'order' => array(0),
+                        'delete' => array('')
+                    ))->save();
+                }
+            }
+        }
+
         $this->_initTypeModels();
     }
 
@@ -1129,7 +1130,7 @@ class AvS_FastSimpleImport_Model_Import_Entity_Product extends AvS_FastSimpleImp
             $currentStoreId = Mage_Catalog_Model_Product::DEFAULT_STORE_ID;
 
             foreach ($bunch as $rowData) {
-		$rowNum++;
+		        $rowNum++;
                 $this->_filterRowData($rowData);
 
                 if (!$this->validateRow($rowData, $rowNum)) {
