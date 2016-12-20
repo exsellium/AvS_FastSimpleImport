@@ -569,6 +569,7 @@ class AvS_FastSimpleImport_Model_Import_Entity_Category extends Mage_ImportExpor
                         $entityRowsIn[]                = $entityRow;
 
                         $this->_newCategory[$rowData[self::COL_ROOT]][$rowData[self::COL_CATEGORY]] = array(
+                            'orig_id' => $rowData[Exsellium_DataSource_Model_Core_Entity_Setup::DATASOURCE_ECI_ATTR_CODE],
                             'entity_id' => $entityId,
                             'path' => $entityRow['path'],
                             'level' => $entityRow['level']
