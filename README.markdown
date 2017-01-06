@@ -46,7 +46,9 @@ Compatibility
 Installation Instructions
 -------------------------
 1. Install the extension via GitHub, composer or a similar method.
-2. If you are using the Enterprise Edition then add ```<Enterprise_ImportExport/>``` to the ```<depends>``` node directly after ```<Mage_ImportExport/>```
+2. If you are using the Enterprise Edition then edit the following files:
+    * _app/etc/modules/AvS_FastSimpleImport.xml_ and uncomment the `Enterprise_ImportExport module dependency (line 9)`.
+    * _app/code/community/AvS/FastSimpleImport/etc/config.xml_ and uncomment the `Enterprise_ImportExport model rewrite (line 27 to 31)`.
 3. Clear the cache, logout from the admin panel and then login again.
 4. Read the [documentation](http://avstudnitz.github.io/AvS_FastSimpleImport/)
 5. Configure the extension at `System -> Configuration -> Services -> FastSimpleImport`.
